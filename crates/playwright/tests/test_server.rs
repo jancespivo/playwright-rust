@@ -196,6 +196,13 @@ async fn locator_page() -> Response<Body> {
     <span id="nested">Nested element</span>
   </div>
   <div id="hidden" style="display: none;">Hidden element</div>
+  <button>Submit</button>
+  <button>Submit Order</button>
+  <span>Hello World</span>
+  <span>hello world</span>
+  <div class="text-container">
+    <span>Inner Text</span>
+  </div>
 </body>
 </html>"#,
         ))

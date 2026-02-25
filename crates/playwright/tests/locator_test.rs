@@ -177,6 +177,79 @@ async fn test_locator_state_methods() {
 }
 
 // ============================================================================
+// get_by_text Locator Methods
+// ============================================================================
+
+#[tokio::test]
+async fn test_get_by_text() {
+    common::init_tracing();
+    let server = TestServer::start().await;
+    let playwright = Playwright::launch()
+        .await
+        .expect("Failed to launch Playwright");
+    let browser = playwright
+        .chromium()
+        .launch()
+        .await
+        .expect("Failed to launch browser");
+    let page = browser.new_page().await.expect("Failed to create page");
+
+    page.goto(&format!("{}/locator.html", server.url()), None)
+        .await
+        .expect("Failed to navigate");
+
+    // Test 1: Substring match (exact=false) - "Submit" matches both "Submit" and "Submit Order"
+    let submit_buttons = page.get_by_text("Submit", false).await;
+    let count = submit_buttons
+        .count()
+        .await
+        .expect("Failed to count submit buttons");
+    assert_eq!(count, 2, "Substring 'Submit' should match both buttons");
+
+    // Test 2: Exact match - "Submit" matches only the exact "Submit" button
+    let exact_submit = page.get_by_text("Submit", true).await;
+    let count = exact_submit
+        .count()
+        .await
+        .expect("Failed to count exact submit");
+    assert_eq!(count, 1, "Exact 'Submit' should match only one button");
+
+    // Test 3: Case-insensitive substring match
+    let hello = page.get_by_text("hello world", false).await;
+    let count = hello.count().await.expect("Failed to count hello");
+    assert_eq!(
+        count, 2,
+        "Case-insensitive 'hello world' should match both spans"
+    );
+
+    // Test 4: Case-sensitive exact match
+    let hello_exact = page.get_by_text("Hello World", true).await;
+    let count = hello_exact
+        .count()
+        .await
+        .expect("Failed to count exact hello");
+    assert_eq!(count, 1, "Exact 'Hello World' should match only one span");
+
+    // Test 5: Locator chaining - get_by_text within a container
+    let container = page.locator(".text-container").await;
+    let inner = container.get_by_text("Inner Text", false);
+    let count = inner.count().await.expect("Failed to count inner text");
+    assert_eq!(count, 1, "get_by_text should scope to container");
+
+    // Test 6: get_by_text on a Locator (chained selector)
+    let body = page.locator("body").await;
+    let submit_in_body = body.get_by_text("Submit", true);
+    let count = submit_in_body
+        .count()
+        .await
+        .expect("Failed to count submit in body");
+    assert_eq!(count, 1, "Chained get_by_text should work from Locator");
+
+    browser.close().await.expect("Failed to close browser");
+    server.shutdown();
+}
+
+// ============================================================================
 // Cross-browser Smoke Test
 // ============================================================================
 

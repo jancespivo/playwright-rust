@@ -19,6 +19,19 @@ use crate::error::Result;
 use crate::protocol::Frame;
 use std::sync::Arc;
 
+/// Builds the internal selector string for `get_by_text`.
+///
+/// Matches the Playwright TypeScript implementation:
+/// - `exact=false` → `internal:text="text"i` (case-insensitive substring)
+/// - `exact=true` → `internal:text="text"s` (case-sensitive exact)
+///
+/// Text is JSON-stringified for proper escaping of quotes and special characters.
+pub(crate) fn get_by_text_selector(text: &str, exact: bool) -> String {
+    let suffix = if exact { "s" } else { "i" };
+    let escaped = serde_json::to_string(text).unwrap_or_else(|_| format!("\"{}\"", text));
+    format!("internal:text={}{}", escaped, suffix)
+}
+
 /// Locator represents a way to find element(s) on the page at any given moment.
 ///
 /// Locators are lazy - they don't execute queries until an action is performed.
@@ -78,6 +91,16 @@ use std::sync::Arc;
 ///     assert_eq!(selected.len(), 2);
 ///     assert!(selected.contains(&"red".to_string()));
 ///     assert!(selected.contains(&"blue".to_string()));
+///
+///     // Demonstrate get_by_text() - find elements by text content
+///     let _ = page.goto(
+///         "data:text/html,<button>Submit</button><button>Submit Order</button>",
+///         None
+///     ).await;
+///     let all_submits = page.get_by_text("Submit", false).await;
+///     assert_eq!(all_submits.count().await?, 2); // case-insensitive substring
+///     let exact_submit = page.get_by_text("Submit", true).await;
+///     assert_eq!(exact_submit.count().await?, 1); // exact match only
 ///
 ///     // Demonstrate screenshot() - element screenshot
 ///     let _ = page.goto(
@@ -141,6 +164,17 @@ impl Locator {
             Arc::clone(&self.frame),
             format!("{} >> nth={}", self.selector, index),
         )
+    }
+
+    /// Returns a locator that matches elements containing the given text.
+    ///
+    /// By default, matching is case-insensitive and searches for a substring.
+    /// Set `exact` to `true` for case-sensitive exact matching.
+    ///
+    /// See: <https://playwright.dev/docs/api/class-locator#locator-get-by-text>
+    pub fn get_by_text(&self, text: &str, exact: bool) -> Locator {
+        let selector = get_by_text_selector(text, exact);
+        self.locator(&selector)
     }
 
     /// Creates a sub-locator within this locator's subtree.

@@ -437,6 +437,17 @@ impl Page {
         crate::protocol::Locator::new(Arc::new(frame), selector.to_string())
     }
 
+    /// Returns a locator that matches elements containing the given text.
+    ///
+    /// By default, matching is case-insensitive and searches for a substring.
+    /// Set `exact` to `true` for case-sensitive exact matching.
+    ///
+    /// See: <https://playwright.dev/docs/api/class-page#page-get-by-text>
+    pub async fn get_by_text(&self, text: &str, exact: bool) -> crate::protocol::Locator {
+        let selector = crate::protocol::locator::get_by_text_selector(text, exact);
+        self.locator(&selector).await
+    }
+
     /// Returns the keyboard instance for low-level keyboard control.
     ///
     /// See: <https://playwright.dev/docs/api/class-page#page-keyboard>
