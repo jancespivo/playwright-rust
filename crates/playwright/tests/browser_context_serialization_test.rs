@@ -68,3 +68,15 @@ fn test_serialize_service_workers() {
     let json = serde_json::to_value(options).unwrap();
     assert_eq!(json["serviceWorkers"], "block");
 }
+
+#[test]
+fn test_serialize_no_viewport_as_no_default_viewport() {
+    let options = BrowserContextOptions::builder().no_viewport(true).build();
+
+    let json = serde_json::to_value(&options).unwrap();
+
+    // Must serialize as "noDefaultViewport" (what the Playwright server expects),
+    // not "noViewport" (what camelCase would produce).
+    assert_eq!(json["noDefaultViewport"], true);
+    assert!(json.get("noViewport").is_none());
+}

@@ -596,7 +596,11 @@ pub struct BrowserContextOptions {
     pub viewport: Option<Viewport>,
 
     /// Disables viewport emulation when set to true.
+    /// Note: Playwright's public API calls this `noViewport`, but the protocol
+    /// expects `noDefaultViewport`. playwright-python applies this transformation
+    /// in `_prepare_browser_context_params`.
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "noDefaultViewport")]
     pub no_viewport: Option<bool>,
 
     /// Custom user agent string

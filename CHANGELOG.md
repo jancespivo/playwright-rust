@@ -37,6 +37,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Enables rotating proxies without creating new browser instances
   - Supports HTTP and SOCKS proxies with optional authentication
 
+### Fixed
+
+- **`no_viewport(true)` / `--start-maximized` not working** - Fixed protocol field name for viewport disabling (Issue #34)
+  - `no_viewport` now correctly serializes as `noDefaultViewport` (matching the Playwright protocol)
+  - Previously serialized as `noViewport` which the server silently ignored
+  - Enables `--start-maximized` with `no_viewport(true)` to produce maximized browser windows
+
 ## [0.8.3] - 2026-01-25
 
 ### Added
