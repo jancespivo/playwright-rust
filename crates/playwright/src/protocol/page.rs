@@ -498,6 +498,20 @@ impl Page {
             .await
     }
 
+    /// Returns a locator that matches elements by their ARIA role.
+    ///
+    /// See: <https://playwright.dev/docs/api/class-page#page-get-by-role>
+    pub async fn get_by_role(
+        &self,
+        role: crate::protocol::locator::AriaRole,
+        options: Option<crate::protocol::locator::GetByRoleOptions>,
+    ) -> crate::protocol::Locator {
+        self.locator(&crate::protocol::locator::get_by_role_selector(
+            role, options,
+        ))
+        .await
+    }
+
     /// Returns the keyboard instance for low-level keyboard control.
     ///
     /// See: <https://playwright.dev/docs/api/class-page#page-keyboard>

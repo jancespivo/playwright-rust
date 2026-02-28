@@ -213,6 +213,17 @@ async fn locator_page() -> Response<Body> {
   <span title="More Info Expanded">Extended Details</span>
   <button data-testid="submit-btn">Submit Form</button>
   <button data-testid="cancel-btn">Cancel</button>
+  <!-- get_by_role test elements -->
+  <nav aria-label="Main">
+    <a href="/home">Home</a>
+    <a href="/about">About</a>
+  </nav>
+  <h2>Section Title</h2>
+  <h3>Subsection</h3>
+  <input type="checkbox" aria-label="I agree" checked />
+  <input type="checkbox" aria-label="Subscribe" />
+  <button disabled>Disabled Button</button>
+  <div role="alert">Important message</div>
 </body>
 </html>"#,
         ))

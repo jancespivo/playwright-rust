@@ -359,6 +359,159 @@ async fn test_get_by_locator_methods() {
 }
 
 // ============================================================================
+// get_by_role Locator Methods
+// ============================================================================
+
+#[tokio::test]
+async fn test_get_by_role() {
+    common::init_tracing();
+    let server = TestServer::start().await;
+    let playwright = Playwright::launch()
+        .await
+        .expect("Failed to launch Playwright");
+    let browser = playwright
+        .chromium()
+        .launch()
+        .await
+        .expect("Failed to launch browser");
+    let page = browser.new_page().await.expect("Failed to create page");
+
+    page.goto(&format!("{}/locator.html", server.url()), None)
+        .await
+        .expect("Failed to navigate");
+
+    use playwright_rs::{AriaRole, GetByRoleOptions};
+
+    // Test 1: Find buttons by role (Submit, Submit Order, Submit Form, Cancel, Disabled Button)
+    let buttons = page.get_by_role(AriaRole::Button, None).await;
+    let count = buttons.count().await.expect("Failed to count buttons");
+    assert_eq!(count, 5, "Should find 5 buttons, got {}", count);
+
+    // Test 2: Find button by role + exact name
+    let submit = page
+        .get_by_role(
+            AriaRole::Button,
+            Some(GetByRoleOptions {
+                name: Some("Submit".into()),
+                exact: Some(true),
+                ..Default::default()
+            }),
+        )
+        .await;
+    let count = submit.count().await.expect("Failed to count submit");
+    assert_eq!(count, 1, "Exact name 'Submit' should match one button");
+
+    // Test 3: Find button by role + substring name
+    let submit_buttons = page
+        .get_by_role(
+            AriaRole::Button,
+            Some(GetByRoleOptions {
+                name: Some("Submit".into()),
+                ..Default::default()
+            }),
+        )
+        .await;
+    let count = submit_buttons
+        .count()
+        .await
+        .expect("Failed to count submit buttons");
+    assert!(
+        count >= 2,
+        "Substring 'Submit' should match multiple buttons, got {}",
+        count
+    );
+
+    // Test 4: Find headings by level
+    let h2 = page
+        .get_by_role(
+            AriaRole::Heading,
+            Some(GetByRoleOptions {
+                level: Some(2),
+                ..Default::default()
+            }),
+        )
+        .await;
+    let count = h2.count().await.expect("Failed to count h2");
+    assert_eq!(count, 1, "Should find one h2 heading");
+    let text = h2.text_content().await.expect("Failed to get h2 text");
+    assert_eq!(text, Some("Section Title".to_string()));
+
+    // Test 5: Find checked checkboxes
+    let checked = page
+        .get_by_role(
+            AriaRole::Checkbox,
+            Some(GetByRoleOptions {
+                checked: Some(true),
+                ..Default::default()
+            }),
+        )
+        .await;
+    let count = checked.count().await.expect("Failed to count checked");
+    assert_eq!(count, 1, "Should find one checked checkbox");
+
+    // Test 6: Find unchecked checkboxes
+    let unchecked = page
+        .get_by_role(
+            AriaRole::Checkbox,
+            Some(GetByRoleOptions {
+                checked: Some(false),
+                ..Default::default()
+            }),
+        )
+        .await;
+    let count = unchecked.count().await.expect("Failed to count unchecked");
+    assert_eq!(count, 1, "Should find one unchecked checkbox");
+
+    // Test 7: Find disabled buttons
+    let disabled = page
+        .get_by_role(
+            AriaRole::Button,
+            Some(GetByRoleOptions {
+                disabled: Some(true),
+                ..Default::default()
+            }),
+        )
+        .await;
+    let count = disabled.count().await.expect("Failed to count disabled");
+    assert_eq!(count, 1, "Should find one disabled button");
+
+    // Test 8: Find links
+    let links = page.get_by_role(AriaRole::Link, None).await;
+    let count = links.count().await.expect("Failed to count links");
+    assert!(count >= 2, "Should find at least 2 links, got {}", count);
+
+    // Test 9: Find alert role
+    let alert = page.get_by_role(AriaRole::Alert, None).await;
+    let text = alert
+        .text_content()
+        .await
+        .expect("Failed to get alert text");
+    assert_eq!(text, Some("Important message".to_string()));
+
+    // Test 10: Locator chaining
+    let body = page.locator("body").await;
+    let chained = body.get_by_role(AriaRole::Alert, None);
+    let count = chained.count().await.expect("Failed to count chained");
+    assert_eq!(count, 1, "Chained get_by_role should work");
+
+    // Test 11: Case-insensitive name match (default)
+    let submit_ci = page
+        .get_by_role(
+            AriaRole::Button,
+            Some(GetByRoleOptions {
+                name: Some("submit".into()),
+                ..Default::default()
+            }),
+        )
+        .await;
+    let count = submit_ci.count().await.expect("Failed to count ci");
+    assert!(count >= 1, "Case-insensitive name should match");
+
+    browser.close().await.expect("Failed to close browser");
+    server.shutdown();
+}
+
+// ============================================================================
 // Cross-browser Smoke Test
 // ============================================================================
 

@@ -16,8 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `get_by_alt_text(text, exact)` - Find images by alt text
   - `get_by_title(text, exact)` - Find elements by title attribute
   - `get_by_test_id(test_id)` - Find elements by `data-testid` attribute (always exact)
+  - `get_by_role(role, options)` - Find elements by ARIA role with optional name, checked, disabled, expanded, selected, level, pressed, include_hidden filters
   - All methods available on both `Page` and `Locator` (chainable)
   - Case-insensitive substring matching by default (`exact=false`), case-sensitive exact with `exact=true`
+  - `AriaRole` enum with 81 ARIA roles for compile-time safety
+  - `GetByRoleOptions` struct for role-based filtering
 - **`connect_over_cdp`** - Connect to Chrome DevTools Protocol endpoints (Issue #32)
   - `browser_type.connect_over_cdp(endpoint_url, options)` - Connect to remote Chrome via CDP
   - Supports browserless, Chrome with `--remote-debugging-port`, and other CDP services

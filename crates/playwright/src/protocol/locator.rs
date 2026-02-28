@@ -83,6 +83,270 @@ pub(crate) fn get_by_test_id_selector(test_id: &str) -> String {
     )
 }
 
+/// Escapes text for use in Playwright's attribute role selector.
+///
+/// Unlike `escape_for_selector` (which uses JSON encoding), this only escapes
+/// backslashes and double quotes, matching Playwright's `escapeForAttributeSelector`.
+fn escape_for_attribute_selector(text: &str, exact: bool) -> String {
+    let suffix = if exact { "s" } else { "i" };
+    let escaped = text.replace('\\', "\\\\").replace('"', "\\\"");
+    format!("\"{}\"{}", escaped, suffix)
+}
+
+/// Builds the internal selector string for `get_by_role`.
+///
+/// Format: `internal:role=<role>[prop1=val1][prop2=val2]...`
+///
+/// Properties are appended in Playwright's required order:
+/// checked, disabled, selected, expanded, include-hidden, level, name, pressed.
+pub(crate) fn get_by_role_selector(role: AriaRole, options: Option<GetByRoleOptions>) -> String {
+    let mut selector = format!("internal:role={}", role.as_str());
+
+    if let Some(opts) = options {
+        if let Some(checked) = opts.checked {
+            selector.push_str(&format!("[checked={}]", checked));
+        }
+        if let Some(disabled) = opts.disabled {
+            selector.push_str(&format!("[disabled={}]", disabled));
+        }
+        if let Some(selected) = opts.selected {
+            selector.push_str(&format!("[selected={}]", selected));
+        }
+        if let Some(expanded) = opts.expanded {
+            selector.push_str(&format!("[expanded={}]", expanded));
+        }
+        if let Some(include_hidden) = opts.include_hidden {
+            selector.push_str(&format!("[include-hidden={}]", include_hidden));
+        }
+        if let Some(level) = opts.level {
+            selector.push_str(&format!("[level={}]", level));
+        }
+        if let Some(name) = &opts.name {
+            let exact = opts.exact.unwrap_or(false);
+            selector.push_str(&format!(
+                "[name={}]",
+                escape_for_attribute_selector(name, exact)
+            ));
+        }
+        if let Some(pressed) = opts.pressed {
+            selector.push_str(&format!("[pressed={}]", pressed));
+        }
+    }
+
+    selector
+}
+
+/// ARIA roles for `get_by_role()` locator.
+///
+/// Represents WAI-ARIA roles used to locate elements by their accessibility role.
+/// Matches Playwright's `AriaRole` enum across all language bindings.
+///
+/// See: <https://playwright.dev/docs/api/class-page#page-get-by-role>
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AriaRole {
+    Alert,
+    Alertdialog,
+    Application,
+    Article,
+    Banner,
+    Blockquote,
+    Button,
+    Caption,
+    Cell,
+    Checkbox,
+    Code,
+    Columnheader,
+    Combobox,
+    Complementary,
+    Contentinfo,
+    Definition,
+    Deletion,
+    Dialog,
+    Directory,
+    Document,
+    Emphasis,
+    Feed,
+    Figure,
+    Form,
+    Generic,
+    Grid,
+    Gridcell,
+    Group,
+    Heading,
+    Img,
+    Insertion,
+    Link,
+    List,
+    Listbox,
+    Listitem,
+    Log,
+    Main,
+    Marquee,
+    Math,
+    Meter,
+    Menu,
+    Menubar,
+    Menuitem,
+    Menuitemcheckbox,
+    Menuitemradio,
+    Navigation,
+    None,
+    Note,
+    Option,
+    Paragraph,
+    Presentation,
+    Progressbar,
+    Radio,
+    Radiogroup,
+    Region,
+    Row,
+    Rowgroup,
+    Rowheader,
+    Scrollbar,
+    Search,
+    Searchbox,
+    Separator,
+    Slider,
+    Spinbutton,
+    Status,
+    Strong,
+    Subscript,
+    Superscript,
+    Switch,
+    Tab,
+    Table,
+    Tablist,
+    Tabpanel,
+    Term,
+    Textbox,
+    Time,
+    Timer,
+    Toolbar,
+    Tooltip,
+    Tree,
+    Treegrid,
+    Treeitem,
+}
+
+impl AriaRole {
+    /// Returns the lowercase string representation used in selectors.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Alert => "alert",
+            Self::Alertdialog => "alertdialog",
+            Self::Application => "application",
+            Self::Article => "article",
+            Self::Banner => "banner",
+            Self::Blockquote => "blockquote",
+            Self::Button => "button",
+            Self::Caption => "caption",
+            Self::Cell => "cell",
+            Self::Checkbox => "checkbox",
+            Self::Code => "code",
+            Self::Columnheader => "columnheader",
+            Self::Combobox => "combobox",
+            Self::Complementary => "complementary",
+            Self::Contentinfo => "contentinfo",
+            Self::Definition => "definition",
+            Self::Deletion => "deletion",
+            Self::Dialog => "dialog",
+            Self::Directory => "directory",
+            Self::Document => "document",
+            Self::Emphasis => "emphasis",
+            Self::Feed => "feed",
+            Self::Figure => "figure",
+            Self::Form => "form",
+            Self::Generic => "generic",
+            Self::Grid => "grid",
+            Self::Gridcell => "gridcell",
+            Self::Group => "group",
+            Self::Heading => "heading",
+            Self::Img => "img",
+            Self::Insertion => "insertion",
+            Self::Link => "link",
+            Self::List => "list",
+            Self::Listbox => "listbox",
+            Self::Listitem => "listitem",
+            Self::Log => "log",
+            Self::Main => "main",
+            Self::Marquee => "marquee",
+            Self::Math => "math",
+            Self::Meter => "meter",
+            Self::Menu => "menu",
+            Self::Menubar => "menubar",
+            Self::Menuitem => "menuitem",
+            Self::Menuitemcheckbox => "menuitemcheckbox",
+            Self::Menuitemradio => "menuitemradio",
+            Self::Navigation => "navigation",
+            Self::None => "none",
+            Self::Note => "note",
+            Self::Option => "option",
+            Self::Paragraph => "paragraph",
+            Self::Presentation => "presentation",
+            Self::Progressbar => "progressbar",
+            Self::Radio => "radio",
+            Self::Radiogroup => "radiogroup",
+            Self::Region => "region",
+            Self::Row => "row",
+            Self::Rowgroup => "rowgroup",
+            Self::Rowheader => "rowheader",
+            Self::Scrollbar => "scrollbar",
+            Self::Search => "search",
+            Self::Searchbox => "searchbox",
+            Self::Separator => "separator",
+            Self::Slider => "slider",
+            Self::Spinbutton => "spinbutton",
+            Self::Status => "status",
+            Self::Strong => "strong",
+            Self::Subscript => "subscript",
+            Self::Superscript => "superscript",
+            Self::Switch => "switch",
+            Self::Tab => "tab",
+            Self::Table => "table",
+            Self::Tablist => "tablist",
+            Self::Tabpanel => "tabpanel",
+            Self::Term => "term",
+            Self::Textbox => "textbox",
+            Self::Time => "time",
+            Self::Timer => "timer",
+            Self::Toolbar => "toolbar",
+            Self::Tooltip => "tooltip",
+            Self::Tree => "tree",
+            Self::Treegrid => "treegrid",
+            Self::Treeitem => "treeitem",
+        }
+    }
+}
+
+/// Options for `get_by_role()` locator.
+///
+/// All fields are optional. When not specified, the property is not included
+/// in the role selector, meaning it matches any value.
+///
+/// See: <https://playwright.dev/docs/api/class-page#page-get-by-role>
+#[derive(Debug, Clone, Default)]
+pub struct GetByRoleOptions {
+    /// Whether the element is checked (for checkboxes, radio buttons).
+    pub checked: Option<bool>,
+    /// Whether the element is disabled.
+    pub disabled: Option<bool>,
+    /// Whether the element is selected (for options).
+    pub selected: Option<bool>,
+    /// Whether the element is expanded (for tree items, comboboxes).
+    pub expanded: Option<bool>,
+    /// Whether to include hidden elements.
+    pub include_hidden: Option<bool>,
+    /// The heading level (1-6, for heading role).
+    pub level: Option<u32>,
+    /// The accessible name of the element.
+    pub name: Option<String>,
+    /// Whether `name` matching is exact (case-sensitive, full-string).
+    /// Default is false (case-insensitive substring).
+    pub exact: Option<bool>,
+    /// Whether the element is pressed (for toggle buttons).
+    pub pressed: Option<bool>,
+}
+
 /// Locator represents a way to find element(s) on the page at any given moment.
 ///
 /// Locators are lazy - they don't execute queries until an action is performed.
@@ -280,6 +544,16 @@ impl Locator {
     /// See: <https://playwright.dev/docs/api/class-locator#locator-get-by-test-id>
     pub fn get_by_test_id(&self, test_id: &str) -> Locator {
         self.locator(&get_by_test_id_selector(test_id))
+    }
+
+    /// Returns a locator that matches elements by their ARIA role.
+    ///
+    /// This is the recommended way to locate elements, as it matches the way
+    /// users and assistive technology perceive the page.
+    ///
+    /// See: <https://playwright.dev/docs/api/class-locator#locator-get-by-role>
+    pub fn get_by_role(&self, role: AriaRole, options: Option<GetByRoleOptions>) -> Locator {
+        self.locator(&get_by_role_selector(role, options))
     }
 
     /// Creates a sub-locator within this locator's subtree.
@@ -590,5 +864,161 @@ impl std::fmt::Debug for Locator {
         f.debug_struct("Locator")
             .field("selector", &self.selector)
             .finish()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_escape_for_attribute_selector_case_insensitive() {
+        assert_eq!(
+            escape_for_attribute_selector("Submit", false),
+            "\"Submit\"i"
+        );
+    }
+
+    #[test]
+    fn test_escape_for_attribute_selector_exact() {
+        assert_eq!(escape_for_attribute_selector("Submit", true), "\"Submit\"s");
+    }
+
+    #[test]
+    fn test_escape_for_attribute_selector_escapes_quotes() {
+        assert_eq!(
+            escape_for_attribute_selector("Say \"hello\"", false),
+            "\"Say \\\"hello\\\"\"i"
+        );
+    }
+
+    #[test]
+    fn test_escape_for_attribute_selector_escapes_backslashes() {
+        assert_eq!(
+            escape_for_attribute_selector("path\\to", true),
+            "\"path\\\\to\"s"
+        );
+    }
+
+    #[test]
+    fn test_get_by_role_selector_role_only() {
+        assert_eq!(
+            get_by_role_selector(AriaRole::Button, None),
+            "internal:role=button"
+        );
+    }
+
+    #[test]
+    fn test_get_by_role_selector_with_name() {
+        let opts = GetByRoleOptions {
+            name: Some("Submit".to_string()),
+            ..Default::default()
+        };
+        assert_eq!(
+            get_by_role_selector(AriaRole::Button, Some(opts)),
+            "internal:role=button[name=\"Submit\"i]"
+        );
+    }
+
+    #[test]
+    fn test_get_by_role_selector_with_name_exact() {
+        let opts = GetByRoleOptions {
+            name: Some("Submit".to_string()),
+            exact: Some(true),
+            ..Default::default()
+        };
+        assert_eq!(
+            get_by_role_selector(AriaRole::Button, Some(opts)),
+            "internal:role=button[name=\"Submit\"s]"
+        );
+    }
+
+    #[test]
+    fn test_get_by_role_selector_with_checked() {
+        let opts = GetByRoleOptions {
+            checked: Some(true),
+            ..Default::default()
+        };
+        assert_eq!(
+            get_by_role_selector(AriaRole::Checkbox, Some(opts)),
+            "internal:role=checkbox[checked=true]"
+        );
+    }
+
+    #[test]
+    fn test_get_by_role_selector_with_level() {
+        let opts = GetByRoleOptions {
+            level: Some(2),
+            ..Default::default()
+        };
+        assert_eq!(
+            get_by_role_selector(AriaRole::Heading, Some(opts)),
+            "internal:role=heading[level=2]"
+        );
+    }
+
+    #[test]
+    fn test_get_by_role_selector_with_disabled() {
+        let opts = GetByRoleOptions {
+            disabled: Some(true),
+            ..Default::default()
+        };
+        assert_eq!(
+            get_by_role_selector(AriaRole::Button, Some(opts)),
+            "internal:role=button[disabled=true]"
+        );
+    }
+
+    #[test]
+    fn test_get_by_role_selector_include_hidden() {
+        let opts = GetByRoleOptions {
+            include_hidden: Some(true),
+            ..Default::default()
+        };
+        assert_eq!(
+            get_by_role_selector(AriaRole::Button, Some(opts)),
+            "internal:role=button[include-hidden=true]"
+        );
+    }
+
+    #[test]
+    fn test_get_by_role_selector_property_order() {
+        // All properties: checked, disabled, selected, expanded, include-hidden, level, name, pressed
+        let opts = GetByRoleOptions {
+            pressed: Some(true),
+            name: Some("OK".to_string()),
+            checked: Some(false),
+            disabled: Some(true),
+            ..Default::default()
+        };
+        assert_eq!(
+            get_by_role_selector(AriaRole::Button, Some(opts)),
+            "internal:role=button[checked=false][disabled=true][name=\"OK\"i][pressed=true]"
+        );
+    }
+
+    #[test]
+    fn test_get_by_role_selector_name_with_special_chars() {
+        let opts = GetByRoleOptions {
+            name: Some("Click \"here\" now".to_string()),
+            exact: Some(true),
+            ..Default::default()
+        };
+        assert_eq!(
+            get_by_role_selector(AriaRole::Link, Some(opts)),
+            "internal:role=link[name=\"Click \\\"here\\\" now\"s]"
+        );
+    }
+
+    #[test]
+    fn test_aria_role_as_str() {
+        assert_eq!(AriaRole::Button.as_str(), "button");
+        assert_eq!(AriaRole::Heading.as_str(), "heading");
+        assert_eq!(AriaRole::Link.as_str(), "link");
+        assert_eq!(AriaRole::Checkbox.as_str(), "checkbox");
+        assert_eq!(AriaRole::Alert.as_str(), "alert");
+        assert_eq!(AriaRole::Navigation.as_str(), "navigation");
+        assert_eq!(AriaRole::Progressbar.as_str(), "progressbar");
+        assert_eq!(AriaRole::Treeitem.as_str(), "treeitem");
     }
 }
