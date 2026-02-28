@@ -26,6 +26,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Supports browserless, Chrome with `--remote-debugging-port`, and other CDP services
   - Accepts optional headers, timeout, and slow_mo options
   - Chromium-only (returns error for Firefox/WebKit)
+- **`Locator.all()`** - Iterate over all matching elements (Issue #33)
+  - `locator.all()` returns `Vec<Locator>`, one per matching element
+  - Empty vec for non-matching selectors (no error)
+  - Matches Playwright's `locator.all()` API
+- **Improved error messages** - All locator methods now include the selector in error messages (Issue #33)
+  - Timeout errors show `[selector: div.page-number > span:last-child]` instead of generic messages
+  - Applied to all query methods (`text_content`, `get_attribute`, etc.) and action methods (`click`, `fill`, etc.)
 - **BrowserContext proxy support** - Added `proxy` option to `BrowserContextOptions` for per-context proxy configuration (PR #29, Issue #28)
   - Enables rotating proxies without creating new browser instances
   - Supports HTTP and SOCKS proxies with optional authentication

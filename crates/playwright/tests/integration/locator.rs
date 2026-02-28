@@ -508,6 +508,129 @@ async fn test_get_by_role() {
 }
 
 // ============================================================================
+// Locator.all() Method
+// ============================================================================
+
+#[tokio::test]
+async fn test_locator_all_multiple_elements() {
+    crate::common::init_tracing();
+    let server = TestServer::start().await;
+    let playwright = Playwright::launch()
+        .await
+        .expect("Failed to launch Playwright");
+    let browser = playwright
+        .chromium()
+        .launch()
+        .await
+        .expect("Failed to launch browser");
+    let page = browser.new_page().await.expect("Failed to create page");
+
+    page.goto(&format!("{}/locator.html", server.url()), None)
+        .await
+        .expect("Failed to navigate");
+
+    // locator.html has 3 <p> elements
+    let paragraphs = page.locator("p").await;
+    let all = paragraphs.all().await.expect("Failed to get all locators");
+
+    assert_eq!(all.len(), 3, "Should have 3 paragraph locators");
+
+    // Each sub-locator should resolve to the correct text
+    let text0 = all[0].text_content().await.expect("Failed to get text");
+    assert_eq!(text0, Some("First paragraph".to_string()));
+
+    let text1 = all[1].text_content().await.expect("Failed to get text");
+    assert_eq!(text1, Some("Second paragraph".to_string()));
+
+    let text2 = all[2].text_content().await.expect("Failed to get text");
+    assert_eq!(text2, Some("Third paragraph".to_string()));
+
+    browser.close().await.expect("Failed to close browser");
+    server.shutdown();
+}
+
+#[tokio::test]
+async fn test_locator_all_empty_selector() {
+    crate::common::init_tracing();
+    let server = TestServer::start().await;
+    let playwright = Playwright::launch()
+        .await
+        .expect("Failed to launch Playwright");
+    let browser = playwright
+        .chromium()
+        .launch()
+        .await
+        .expect("Failed to launch browser");
+    let page = browser.new_page().await.expect("Failed to create page");
+
+    page.goto(&format!("{}/locator.html", server.url()), None)
+        .await
+        .expect("Failed to navigate");
+
+    // Non-matching selector should return empty vec
+    let missing = page.locator(".does-not-exist").await;
+    let all = missing.all().await.expect("Failed to get all locators");
+    assert_eq!(
+        all.len(),
+        0,
+        "Should return empty vec for non-matching selector"
+    );
+
+    browser.close().await.expect("Failed to close browser");
+    server.shutdown();
+}
+
+// ============================================================================
+// Error Context — selector included in error messages
+// ============================================================================
+
+#[tokio::test]
+async fn test_locator_error_includes_selector() {
+    crate::common::init_tracing();
+    let server = TestServer::start().await;
+    let playwright = Playwright::launch()
+        .await
+        .expect("Failed to launch Playwright");
+    let browser = playwright
+        .chromium()
+        .launch()
+        .await
+        .expect("Failed to launch browser");
+    let page = browser.new_page().await.expect("Failed to create page");
+
+    page.goto(&format!("{}/locator.html", server.url()), None)
+        .await
+        .expect("Failed to navigate");
+
+    // Use the exact selector from issue #33 — should produce a clear error
+    let selector = "div.page-number > span:last-child";
+    let missing = page.locator(selector).await;
+
+    // Use a short timeout to avoid waiting the default 30s
+    let short_timeout_ms = 500.0;
+
+    // click() should fail with an error that includes the selector
+    let result = missing
+        .click(Some(
+            playwright_rs::protocol::ClickOptions::builder()
+                .timeout(short_timeout_ms)
+                .build(),
+        ))
+        .await;
+
+    assert!(result.is_err(), "Should fail for non-existent element");
+    let err_msg = result.unwrap_err().to_string();
+    assert!(
+        err_msg.contains(selector),
+        "Error should include selector, got: {}",
+        err_msg
+    );
+
+    browser.close().await.expect("Failed to close browser");
+    server.shutdown();
+}
+
+// ============================================================================
 // Cross-browser Smoke Test
 // ============================================================================
 

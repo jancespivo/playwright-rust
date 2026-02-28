@@ -570,70 +570,111 @@ impl Locator {
     ///
     /// See: <https://playwright.dev/docs/api/class-locator#locator-count>
     pub async fn count(&self) -> Result<usize> {
-        self.frame.locator_count(&self.selector).await
+        self.frame
+            .locator_count(&self.selector)
+            .await
+            .map_err(|e| self.wrap_error_with_selector(e))
+    }
+
+    /// Returns an array of locators, one for each matching element.
+    ///
+    /// Note: `all()` does not wait for elements to match the locator,
+    /// and instead immediately returns whatever is in the DOM.
+    ///
+    /// See: <https://playwright.dev/docs/api/class-locator#locator-all>
+    pub async fn all(&self) -> Result<Vec<Locator>> {
+        let count = self.count().await?;
+        Ok((0..count).map(|i| self.nth(i as i32)).collect())
     }
 
     /// Returns the text content of the element.
     ///
     /// See: <https://playwright.dev/docs/api/class-locator#locator-text-content>
     pub async fn text_content(&self) -> Result<Option<String>> {
-        self.frame.locator_text_content(&self.selector).await
+        self.frame
+            .locator_text_content(&self.selector)
+            .await
+            .map_err(|e| self.wrap_error_with_selector(e))
     }
 
     /// Returns the inner text of the element (visible text).
     ///
     /// See: <https://playwright.dev/docs/api/class-locator#locator-inner-text>
     pub async fn inner_text(&self) -> Result<String> {
-        self.frame.locator_inner_text(&self.selector).await
+        self.frame
+            .locator_inner_text(&self.selector)
+            .await
+            .map_err(|e| self.wrap_error_with_selector(e))
     }
 
     /// Returns the inner HTML of the element.
     ///
     /// See: <https://playwright.dev/docs/api/class-locator#locator-inner-html>
     pub async fn inner_html(&self) -> Result<String> {
-        self.frame.locator_inner_html(&self.selector).await
+        self.frame
+            .locator_inner_html(&self.selector)
+            .await
+            .map_err(|e| self.wrap_error_with_selector(e))
     }
 
     /// Returns the value of the specified attribute.
     ///
     /// See: <https://playwright.dev/docs/api/class-locator#locator-get-attribute>
     pub async fn get_attribute(&self, name: &str) -> Result<Option<String>> {
-        self.frame.locator_get_attribute(&self.selector, name).await
+        self.frame
+            .locator_get_attribute(&self.selector, name)
+            .await
+            .map_err(|e| self.wrap_error_with_selector(e))
     }
 
     /// Returns whether the element is visible.
     ///
     /// See: <https://playwright.dev/docs/api/class-locator#locator-is-visible>
     pub async fn is_visible(&self) -> Result<bool> {
-        self.frame.locator_is_visible(&self.selector).await
+        self.frame
+            .locator_is_visible(&self.selector)
+            .await
+            .map_err(|e| self.wrap_error_with_selector(e))
     }
 
     /// Returns whether the element is enabled.
     ///
     /// See: <https://playwright.dev/docs/api/class-locator#locator-is-enabled>
     pub async fn is_enabled(&self) -> Result<bool> {
-        self.frame.locator_is_enabled(&self.selector).await
+        self.frame
+            .locator_is_enabled(&self.selector)
+            .await
+            .map_err(|e| self.wrap_error_with_selector(e))
     }
 
     /// Returns whether the checkbox or radio button is checked.
     ///
     /// See: <https://playwright.dev/docs/api/class-locator#locator-is-checked>
     pub async fn is_checked(&self) -> Result<bool> {
-        self.frame.locator_is_checked(&self.selector).await
+        self.frame
+            .locator_is_checked(&self.selector)
+            .await
+            .map_err(|e| self.wrap_error_with_selector(e))
     }
 
     /// Returns whether the element is editable.
     ///
     /// See: <https://playwright.dev/docs/api/class-locator#locator-is-editable>
     pub async fn is_editable(&self) -> Result<bool> {
-        self.frame.locator_is_editable(&self.selector).await
+        self.frame
+            .locator_is_editable(&self.selector)
+            .await
+            .map_err(|e| self.wrap_error_with_selector(e))
     }
 
     /// Returns whether the element is focused (currently has focus).
     ///
     /// See: <https://playwright.dev/docs/api/class-locator#locator-is-focused>
     pub async fn is_focused(&self) -> Result<bool> {
-        self.frame.locator_is_focused(&self.selector).await
+        self.frame
+            .locator_is_focused(&self.selector)
+            .await
+            .map_err(|e| self.wrap_error_with_selector(e))
     }
 
     // Action methods
@@ -666,7 +707,10 @@ impl Locator {
     ///
     /// See: <https://playwright.dev/docs/api/class-locator#locator-dblclick>
     pub async fn dblclick(&self, options: Option<crate::protocol::ClickOptions>) -> Result<()> {
-        self.frame.locator_dblclick(&self.selector, options).await
+        self.frame
+            .locator_dblclick(&self.selector, options)
+            .await
+            .map_err(|e| self.wrap_error_with_selector(e))
     }
 
     /// Fills the element with text.
@@ -677,14 +721,20 @@ impl Locator {
         text: &str,
         options: Option<crate::protocol::FillOptions>,
     ) -> Result<()> {
-        self.frame.locator_fill(&self.selector, text, options).await
+        self.frame
+            .locator_fill(&self.selector, text, options)
+            .await
+            .map_err(|e| self.wrap_error_with_selector(e))
     }
 
     /// Clears the element's value.
     ///
     /// See: <https://playwright.dev/docs/api/class-locator#locator-clear>
     pub async fn clear(&self, options: Option<crate::protocol::FillOptions>) -> Result<()> {
-        self.frame.locator_clear(&self.selector, options).await
+        self.frame
+            .locator_clear(&self.selector, options)
+            .await
+            .map_err(|e| self.wrap_error_with_selector(e))
     }
 
     /// Presses a key on the element.
@@ -695,7 +745,10 @@ impl Locator {
         key: &str,
         options: Option<crate::protocol::PressOptions>,
     ) -> Result<()> {
-        self.frame.locator_press(&self.selector, key, options).await
+        self.frame
+            .locator_press(&self.selector, key, options)
+            .await
+            .map_err(|e| self.wrap_error_with_selector(e))
     }
 
     /// Ensures the checkbox or radio button is checked.
@@ -704,7 +757,10 @@ impl Locator {
     ///
     /// See: <https://playwright.dev/docs/api/class-locator#locator-check>
     pub async fn check(&self, options: Option<crate::protocol::CheckOptions>) -> Result<()> {
-        self.frame.locator_check(&self.selector, options).await
+        self.frame
+            .locator_check(&self.selector, options)
+            .await
+            .map_err(|e| self.wrap_error_with_selector(e))
     }
 
     /// Ensures the checkbox is unchecked.
@@ -713,7 +769,10 @@ impl Locator {
     ///
     /// See: <https://playwright.dev/docs/api/class-locator#locator-uncheck>
     pub async fn uncheck(&self, options: Option<crate::protocol::CheckOptions>) -> Result<()> {
-        self.frame.locator_uncheck(&self.selector, options).await
+        self.frame
+            .locator_uncheck(&self.selector, options)
+            .await
+            .map_err(|e| self.wrap_error_with_selector(e))
     }
 
     /// Sets the checkbox or radio button to the specified checked state.
@@ -738,14 +797,20 @@ impl Locator {
     ///
     /// See: <https://playwright.dev/docs/api/class-locator#locator-hover>
     pub async fn hover(&self, options: Option<crate::protocol::HoverOptions>) -> Result<()> {
-        self.frame.locator_hover(&self.selector, options).await
+        self.frame
+            .locator_hover(&self.selector, options)
+            .await
+            .map_err(|e| self.wrap_error_with_selector(e))
     }
 
     /// Returns the value of the input, textarea, or select element.
     ///
     /// See: <https://playwright.dev/docs/api/class-locator#locator-input-value>
     pub async fn input_value(&self, _options: Option<()>) -> Result<String> {
-        self.frame.locator_input_value(&self.selector).await
+        self.frame
+            .locator_input_value(&self.selector)
+            .await
+            .map_err(|e| self.wrap_error_with_selector(e))
     }
 
     /// Selects one or more options in a select element.
@@ -761,6 +826,7 @@ impl Locator {
         self.frame
             .locator_select_option(&self.selector, value.into(), options)
             .await
+            .map_err(|e| self.wrap_error_with_selector(e))
     }
 
     /// Selects multiple options in a select element.
@@ -778,6 +844,7 @@ impl Locator {
         self.frame
             .locator_select_option_multiple(&self.selector, select_options, options)
             .await
+            .map_err(|e| self.wrap_error_with_selector(e))
     }
 
     /// Sets the file path(s) to upload to a file input element.
@@ -791,6 +858,7 @@ impl Locator {
         self.frame
             .locator_set_input_files(&self.selector, file)
             .await
+            .map_err(|e| self.wrap_error_with_selector(e))
     }
 
     /// Sets multiple file paths to upload to a file input element.
@@ -804,6 +872,7 @@ impl Locator {
         self.frame
             .locator_set_input_files_multiple(&self.selector, files)
             .await
+            .map_err(|e| self.wrap_error_with_selector(e))
     }
 
     /// Sets a file to upload using FilePayload (explicit name, mimeType, buffer).
@@ -817,6 +886,7 @@ impl Locator {
         self.frame
             .locator_set_input_files_payload(&self.selector, file)
             .await
+            .map_err(|e| self.wrap_error_with_selector(e))
     }
 
     /// Sets multiple files to upload using FilePayload.
@@ -830,6 +900,7 @@ impl Locator {
         self.frame
             .locator_set_input_files_payload_multiple(&self.selector, files)
             .await
+            .map_err(|e| self.wrap_error_with_selector(e))
     }
 
     /// Takes a screenshot of the element and returns the image bytes.
@@ -846,7 +917,8 @@ impl Locator {
         let element = self
             .frame
             .query_selector(&self.selector)
-            .await?
+            .await
+            .map_err(|e| self.wrap_error_with_selector(e))?
             .ok_or_else(|| {
                 crate::error::Error::ElementNotFound(format!(
                     "Element not found: {}",
@@ -855,7 +927,10 @@ impl Locator {
             })?;
 
         // Delegate to ElementHandle.screenshot()
-        element.screenshot(options).await
+        element
+            .screenshot(options)
+            .await
+            .map_err(|e| self.wrap_error_with_selector(e))
     }
 }
 
