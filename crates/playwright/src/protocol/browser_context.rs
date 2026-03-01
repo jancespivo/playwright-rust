@@ -5,13 +5,17 @@
 // cache, and local storage.
 
 use crate::error::Result;
-use crate::protocol::{Browser, Page, ProxySettings};
+use crate::protocol::api_request_context::APIRequestContext;
+use crate::protocol::route::UnrouteBehavior;
+use crate::protocol::{Browser, Page, ProxySettings, Route};
 use crate::server::channel::Channel;
 use crate::server::channel_owner::{ChannelOwner, ChannelOwnerImpl, ParentOrConnection};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::any::Any;
 use std::collections::HashMap;
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 
 /// BrowserContext represents an isolated browser session.
@@ -75,6 +79,16 @@ use std::sync::{Arc, Mutex};
 /// ```
 ///
 /// See: <https://playwright.dev/docs/api/class-browsercontext>
+/// Type alias for boxed route handler future
+type RouteHandlerFuture = Pin<Box<dyn Future<Output = Result<()>> + Send>>;
+
+/// Storage for a single route handler
+#[derive(Clone)]
+struct RouteHandlerEntry {
+    pattern: String,
+    handler: Arc<dyn Fn(Route) -> RouteHandlerFuture + Send + Sync>,
+}
+
 #[derive(Clone)]
 pub struct BrowserContext {
     base: ChannelOwnerImpl,
@@ -82,6 +96,10 @@ pub struct BrowserContext {
     browser: Option<Browser>,
     /// All open pages in this context
     pages: Arc<Mutex<Vec<Page>>>,
+    /// Route handlers for context-level network interception
+    route_handlers: Arc<Mutex<Vec<RouteHandlerEntry>>>,
+    /// APIRequestContext GUID from initializer (resolved lazily)
+    request_context_guid: Option<String>,
 }
 
 impl BrowserContext {
@@ -106,6 +124,13 @@ impl BrowserContext {
         guid: Arc<str>,
         initializer: Value,
     ) -> Result<Self> {
+        // Extract APIRequestContext GUID from initializer before moving it
+        let request_context_guid = initializer
+            .get("requestContext")
+            .and_then(|v| v.get("guid"))
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+
         let base = ChannelOwnerImpl::new(
             ParentOrConnection::Parent(parent.clone()),
             type_name,
@@ -122,6 +147,8 @@ impl BrowserContext {
             base,
             browser,
             pages: Arc::new(Mutex::new(Vec::new())),
+            route_handlers: Arc::new(Mutex::new(Vec::new())),
+            request_context_guid,
         };
 
         // Enable dialog event subscription
@@ -257,6 +284,32 @@ impl BrowserContext {
         self.browser.clone()
     }
 
+    /// Returns the APIRequestContext associated with this context.
+    ///
+    /// The APIRequestContext is created automatically by the server for each
+    /// BrowserContext. It enables performing HTTP requests and is used internally
+    /// by `Route::fetch()`.
+    ///
+    /// See: <https://playwright.dev/docs/api/class-browsercontext#browser-context-request>
+    pub async fn request(&self) -> Result<APIRequestContext> {
+        let guid = self.request_context_guid.as_ref().ok_or_else(|| {
+            crate::error::Error::ProtocolError(
+                "No APIRequestContext available for this context".to_string(),
+            )
+        })?;
+
+        let obj = self.connection().get_object(guid).await?;
+        obj.as_any()
+            .downcast_ref::<APIRequestContext>()
+            .cloned()
+            .ok_or_else(|| {
+                crate::error::Error::ProtocolError(format!(
+                    "Expected APIRequestContext, got {}",
+                    obj.type_name()
+                ))
+            })
+    }
+
     /// Closes the browser context and all its pages.
     ///
     /// This is a graceful operation that sends a close command to the context
@@ -313,6 +366,98 @@ impl BrowserContext {
                 }),
             )
             .await
+    }
+
+    /// Registers a route handler for context-level network interception.
+    ///
+    /// Routes registered on a context apply to all pages within the context.
+    /// Page-level routes take precedence over context-level routes.
+    ///
+    /// # Arguments
+    ///
+    /// * `pattern` - URL pattern to match (supports glob patterns like "**/*.png")
+    /// * `handler` - Async closure that handles the route
+    ///
+    /// See: <https://playwright.dev/docs/api/class-browsercontext#browser-context-route>
+    pub async fn route<F, Fut>(&self, pattern: &str, handler: F) -> Result<()>
+    where
+        F: Fn(Route) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = Result<()>> + Send + 'static,
+    {
+        let handler =
+            Arc::new(move |route: Route| -> RouteHandlerFuture { Box::pin(handler(route)) });
+
+        self.route_handlers.lock().unwrap().push(RouteHandlerEntry {
+            pattern: pattern.to_string(),
+            handler,
+        });
+
+        self.enable_network_interception().await
+    }
+
+    /// Removes route handler(s) matching the given URL pattern.
+    ///
+    /// # Arguments
+    ///
+    /// * `pattern` - URL pattern to remove handlers for
+    ///
+    /// See: <https://playwright.dev/docs/api/class-browsercontext#browser-context-unroute>
+    pub async fn unroute(&self, pattern: &str) -> Result<()> {
+        self.route_handlers
+            .lock()
+            .unwrap()
+            .retain(|entry| entry.pattern != pattern);
+        self.enable_network_interception().await
+    }
+
+    /// Removes all registered route handlers.
+    ///
+    /// # Arguments
+    ///
+    /// * `behavior` - Optional behavior for in-flight handlers
+    ///
+    /// See: <https://playwright.dev/docs/api/class-browsercontext#browser-context-unroute-all>
+    pub async fn unroute_all(&self, _behavior: Option<UnrouteBehavior>) -> Result<()> {
+        self.route_handlers.lock().unwrap().clear();
+        self.enable_network_interception().await
+    }
+
+    /// Updates network interception patterns for this context
+    async fn enable_network_interception(&self) -> Result<()> {
+        let patterns: Vec<serde_json::Value> = self
+            .route_handlers
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|entry| serde_json::json!({ "glob": entry.pattern }))
+            .collect();
+
+        self.channel()
+            .send_no_result(
+                "setNetworkInterceptionPatterns",
+                serde_json::json!({ "patterns": patterns }),
+            )
+            .await
+    }
+
+    /// Handles a route event from the protocol
+    async fn on_route_event(route_handlers: Arc<Mutex<Vec<RouteHandlerEntry>>>, route: Route) {
+        let handlers = route_handlers.lock().unwrap().clone();
+        let url = route.request().url().to_string();
+
+        for entry in handlers.iter().rev() {
+            if crate::protocol::route::matches_pattern(&entry.pattern, &url) {
+                let handler = entry.handler.clone();
+                if let Err(e) = handler(route.clone()).await {
+                    tracing::warn!("Context route handler error: {}", e);
+                    break;
+                }
+                if !route.was_handled() {
+                    continue;
+                }
+                break;
+            }
+        }
     }
 }
 
@@ -433,6 +578,50 @@ impl ChannelOwner for BrowserContext {
 
                         // Forward to Page's dialog handlers
                         page.trigger_dialog_event(dialog).await;
+                    });
+                }
+            }
+            "route" => {
+                // Handle context-level network routing event
+                if let Some(route_guid) = params
+                    .get("route")
+                    .and_then(|v| v.get("guid"))
+                    .and_then(|v| v.as_str())
+                {
+                    let connection = self.connection();
+                    let route_guid_owned = route_guid.to_string();
+                    let route_handlers = self.route_handlers.clone();
+                    let request_context_guid = self.request_context_guid.clone();
+
+                    tokio::spawn(async move {
+                        let route_arc = match connection.get_object(&route_guid_owned).await {
+                            Ok(obj) => obj,
+                            Err(e) => {
+                                tracing::warn!("Failed to get route object: {}", e);
+                                return;
+                            }
+                        };
+
+                        let route = match route_arc.as_any().downcast_ref::<Route>() {
+                            Some(r) => r.clone(),
+                            None => {
+                                tracing::warn!("Failed to downcast to Route");
+                                return;
+                            }
+                        };
+
+                        // Set APIRequestContext on the route for fetch() support
+                        if let Some(ref guid) = request_context_guid {
+                            if let Ok(obj) = connection.get_object(guid).await {
+                                if let Some(api_ctx) =
+                                    obj.as_any().downcast_ref::<APIRequestContext>()
+                                {
+                                    route.set_api_request_context(api_ctx.clone());
+                                }
+                            }
+                        }
+
+                        BrowserContext::on_route_event(route_handlers, route).await;
                     });
                 }
             }

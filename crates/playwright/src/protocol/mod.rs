@@ -73,7 +73,8 @@ pub use request::Request;
 pub use response::ResponseObject;
 pub use root::Root;
 pub use route::{
-    ContinueOptions, ContinueOptionsBuilder, FulfillOptions, FulfillOptionsBuilder, Route,
+    ContinueOptions, ContinueOptionsBuilder, FetchOptions, FetchOptionsBuilder, FetchResponse,
+    FulfillOptions, FulfillOptionsBuilder, Route, UnrouteBehavior,
 };
 pub use screenshot::{ScreenshotClip, ScreenshotOptions, ScreenshotType};
 pub use select_option::SelectOption;

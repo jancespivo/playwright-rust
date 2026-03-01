@@ -212,7 +212,7 @@ pub use protocol::{
 };
 
 // Re-export routing types
-pub use protocol::{FulfillOptions, Route};
+pub use protocol::{FetchOptions, FetchResponse, FulfillOptions, Route, UnrouteBehavior};
 
 // Re-export launch and connection options
 pub use api::{ConnectOverCdpOptions, LaunchOptions};

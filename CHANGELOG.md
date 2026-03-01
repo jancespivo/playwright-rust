@@ -36,6 +36,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **BrowserContext proxy support** - Added `proxy` option to `BrowserContextOptions` for per-context proxy configuration (PR #29, Issue #28)
   - Enables rotating proxies without creating new browser instances
   - Supports HTTP and SOCKS proxies with optional authentication
+- **Complete Route API** - Full network interception parity with Playwright (Issue #36)
+  - `route.fallback(overrides)` - Continue to next matching handler (handler chaining)
+  - `route.fetch(options)` - Fetch actual response for inspection/modification before fulfilling
+  - `FetchResponse` type with `status()`, `ok()`, `headers()`, `body()`, `text()`, `json()` methods
+  - `FetchOptions` builder for customizing fetch requests (method, headers, post_data, timeout)
+- **Context-level routing** - `BrowserContext.route()`, `unroute()`, `unroute_all()` for routing across all pages in a context
+- **Page unroute methods** - `page.unroute(pattern)` and `page.unroute_all()` for removing route handlers
+- **APIRequestContext** - Internal implementation for `route.fetch()` via BrowserContext's request context
+  - Handles fetch → fetchResponseBody → disposeAPIResponse protocol flow
+  - Automatic base64 encoding/decoding for request and response bodies
+- **`UnrouteBehavior` enum** - Control behavior when removing route handlers
 
 ### Fixed
 

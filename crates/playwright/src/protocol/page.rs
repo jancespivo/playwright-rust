@@ -1013,43 +1013,59 @@ impl Page {
             .await
     }
 
+    /// Removes route handler(s) matching the given URL pattern.
+    ///
+    /// # Arguments
+    ///
+    /// * `pattern` - URL pattern to remove handlers for
+    ///
+    /// See: <https://playwright.dev/docs/api/class-page#page-unroute>
+    pub async fn unroute(&self, pattern: &str) -> Result<()> {
+        self.route_handlers
+            .lock()
+            .unwrap()
+            .retain(|entry| entry.pattern != pattern);
+        self.enable_network_interception().await
+    }
+
+    /// Removes all registered route handlers.
+    ///
+    /// # Arguments
+    ///
+    /// * `behavior` - Optional behavior for in-flight handlers
+    ///
+    /// See: <https://playwright.dev/docs/api/class-page#page-unroute-all>
+    pub async fn unroute_all(
+        &self,
+        _behavior: Option<crate::protocol::route::UnrouteBehavior>,
+    ) -> Result<()> {
+        self.route_handlers.lock().unwrap().clear();
+        self.enable_network_interception().await
+    }
+
     /// Handles a route event from the protocol
     ///
-    /// Called by on_event when a "route" event is received
+    /// Called by on_event when a "route" event is received.
+    /// Supports handler chaining via `route.fallback()` — if a handler calls
+    /// `fallback()` instead of `continue_()`, `abort()`, or `fulfill()`, the
+    /// next matching handler in the chain is tried.
     async fn on_route_event(&self, route: Route) {
         let handlers = self.route_handlers.lock().unwrap().clone();
         let url = route.request().url().to_string();
 
-        // Find matching handler (last registered wins)
+        // Find matching handler (last registered wins, with fallback chaining)
         for entry in handlers.iter().rev() {
-            // Use glob pattern matching
-            if Self::matches_pattern(&entry.pattern, &url) {
+            if crate::protocol::route::matches_pattern(&entry.pattern, &url) {
                 let handler = entry.handler.clone();
-                // Execute handler and wait for completion
-                // This ensures fulfill/continue/abort completes before browser continues
-                if let Err(e) = handler(route).await {
+                if let Err(e) = handler(route.clone()).await {
                     tracing::warn!("Route handler error: {}", e);
+                    break;
+                }
+                // If handler called fallback(), try the next matching handler
+                if !route.was_handled() {
+                    continue;
                 }
                 break;
-            }
-        }
-    }
-
-    /// Checks if a URL matches a glob pattern
-    ///
-    /// Supports standard glob patterns:
-    /// - `*` matches any characters except `/`
-    /// - `**` matches any characters including `/`
-    /// - `?` matches a single character
-    fn matches_pattern(pattern: &str, url: &str) -> bool {
-        use glob::Pattern;
-
-        // Try to compile the glob pattern
-        match Pattern::new(pattern) {
-            Ok(glob_pattern) => glob_pattern.matches(url),
-            Err(_) => {
-                // If pattern is invalid, fall back to exact string match
-                pattern == url
             }
         }
     }
@@ -1380,6 +1396,19 @@ impl ChannelOwner for Page {
                                 return;
                             }
                         };
+
+                        // Set APIRequestContext on the route for fetch() support.
+                        // Page's parent is BrowserContext, which has the request context.
+                        if let Some(parent) = self_clone.parent() {
+                            if let Some(ctx) = parent
+                                .as_any()
+                                .downcast_ref::<crate::protocol::BrowserContext>()
+                            {
+                                if let Ok(api_ctx) = ctx.request().await {
+                                    route.set_api_request_context(api_ctx);
+                                }
+                            }
+                        }
 
                         // Call the route handler and wait for completion
                         self_clone.on_route_event(route).await;
