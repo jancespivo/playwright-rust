@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`ignore_default_args` for persistent contexts** - Added `ignore_default_args` option to `BrowserContextOptions` for use with `launch_persistent_context_with_options()` (Issue #38)
+  - `IgnoreDefaultArgs::Bool(true)` - Playwright does not pass its own default args
+  - `IgnoreDefaultArgs::Array(vec)` - Filters out specific default arguments
+  - Applies same `ignoreDefaultArgs` → `ignoreAllDefaultArgs` protocol normalization as `LaunchOptions`
+  - Matches Playwright's official `launchPersistentContext` API
+
 ## [0.8.4] - 2026-03-01
 
 ### Added

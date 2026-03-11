@@ -4,6 +4,7 @@
 // Multiple contexts can exist in a single browser, each with its own cookies,
 // cache, and local storage.
 
+use crate::api::launch_options::IgnoreDefaultArgs;
 use crate::error::Result;
 use crate::protocol::api_request_context::APIRequestContext;
 use crate::protocol::route::UnrouteBehavior;
@@ -904,6 +905,14 @@ pub struct BrowserContextOptions {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub headless: Option<bool>,
 
+    /// Filter or disable default browser arguments.
+    /// When `true`, Playwright does not pass its own default args.
+    /// When an array, filters out the given default arguments.
+    ///
+    /// See: <https://playwright.dev/docs/api/class-browsertype#browser-type-launch-persistent-context>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ignore_default_args: Option<IgnoreDefaultArgs>,
+
     /// Slow down operations by N milliseconds
     #[serde(skip_serializing_if = "Option::is_none")]
     pub slow_mo: Option<f64>,
@@ -981,6 +990,7 @@ pub struct BrowserContextOptionsBuilder {
     executable_path: Option<String>,
     firefox_user_prefs: Option<HashMap<String, serde_json::Value>>,
     headless: Option<bool>,
+    ignore_default_args: Option<IgnoreDefaultArgs>,
     slow_mo: Option<f64>,
     timeout: Option<f64>,
     traces_dir: Option<String>,
@@ -1272,6 +1282,18 @@ impl BrowserContextOptionsBuilder {
         self
     }
 
+    /// Filter or disable default browser arguments (for launch_persistent_context).
+    ///
+    /// When `IgnoreDefaultArgs::Bool(true)`, Playwright does not pass its own
+    /// default arguments and only uses the ones from `args`.
+    /// When `IgnoreDefaultArgs::Array(vec)`, filters out the given default arguments.
+    ///
+    /// See: <https://playwright.dev/docs/api/class-browsertype#browser-type-launch-persistent-context>
+    pub fn ignore_default_args(mut self, args: IgnoreDefaultArgs) -> Self {
+        self.ignore_default_args = Some(args);
+        self
+    }
+
     /// Slow down operations by N milliseconds (for launch_persistent_context)
     pub fn slow_mo(mut self, ms: f64) -> Self {
         self.slow_mo = Some(ms);
@@ -1359,6 +1381,7 @@ impl BrowserContextOptionsBuilder {
             executable_path: self.executable_path,
             firefox_user_prefs: self.firefox_user_prefs,
             headless: self.headless,
+            ignore_default_args: self.ignore_default_args,
             slow_mo: self.slow_mo,
             timeout: self.timeout,
             traces_dir: self.traces_dir,
@@ -1369,5 +1392,39 @@ impl BrowserContextOptionsBuilder {
             record_har: self.record_har,
             record_video: self.record_video,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::api::launch_options::IgnoreDefaultArgs;
+
+    #[test]
+    fn test_browser_context_options_ignore_default_args_bool_serialization() {
+        let options = BrowserContextOptions::builder()
+            .ignore_default_args(IgnoreDefaultArgs::Bool(true))
+            .build();
+
+        let value = serde_json::to_value(&options).unwrap();
+        assert_eq!(value["ignoreDefaultArgs"], serde_json::json!(true));
+    }
+
+    #[test]
+    fn test_browser_context_options_ignore_default_args_array_serialization() {
+        let options = BrowserContextOptions::builder()
+            .ignore_default_args(IgnoreDefaultArgs::Array(vec!["--foo".to_string()]))
+            .build();
+
+        let value = serde_json::to_value(&options).unwrap();
+        assert_eq!(value["ignoreDefaultArgs"], serde_json::json!(["--foo"]));
+    }
+
+    #[test]
+    fn test_browser_context_options_ignore_default_args_absent() {
+        let options = BrowserContextOptions::builder().build();
+
+        let value = serde_json::to_value(&options).unwrap();
+        assert!(value.get("ignoreDefaultArgs").is_none());
     }
 }
