@@ -216,6 +216,30 @@ impl Frame {
         Ok(response.value)
     }
 
+    /// Sets the content of the frame.
+    ///
+    /// See: <https://playwright.dev/docs/api/class-frame#frame-set-content>
+    pub async fn set_content(&self, html: &str, options: Option<GotoOptions>) -> Result<()> {
+        let mut params = serde_json::json!({
+            "html": html,
+        });
+
+        if let Some(opts) = options {
+            if let Some(timeout) = opts.timeout {
+                params["timeout"] = serde_json::json!(timeout.as_millis() as u64);
+            } else {
+                params["timeout"] = serde_json::json!(crate::DEFAULT_TIMEOUT_MS);
+            }
+            if let Some(wait_until) = opts.wait_until {
+                params["waitUntil"] = serde_json::json!(wait_until.as_str());
+            }
+        } else {
+            params["timeout"] = serde_json::json!(crate::DEFAULT_TIMEOUT_MS);
+        }
+
+        self.channel().send_no_result("setContent", params).await
+    }
+
     /// Returns the first element matching the selector, or None if not found.
     ///
     /// See: <https://playwright.dev/docs/api/class-frame#frame-query-selector>

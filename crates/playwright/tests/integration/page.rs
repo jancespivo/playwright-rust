@@ -358,6 +358,63 @@ async fn test_page_content_cross_browser() {
     }
 }
 
+#[tokio::test]
+async fn test_page_set_content() {
+    crate::common::init_tracing();
+    let playwright = Playwright::launch()
+        .await
+        .expect("Failed to launch Playwright");
+
+    let browser = playwright
+        .chromium()
+        .launch()
+        .await
+        .expect("Failed to launch browser");
+
+    let page = browser.new_page().await.expect("Failed to create page");
+
+    // Set content and verify
+    page.set_content("<h1>Hello</h1><p>World</p>", None)
+        .await
+        .expect("Failed to set content");
+
+    let content = page.content().await.expect("Failed to get content");
+    assert!(
+        content.contains("<h1>Hello</h1>"),
+        "Content should contain h1"
+    );
+    assert!(content.contains("<p>World</p>"), "Content should contain p");
+    tracing::info!("✓ set_content() works");
+
+    // Set content again to verify replacement
+    page.set_content("<div>Replaced</div>", None)
+        .await
+        .expect("Failed to set content again");
+
+    let content = page.content().await.expect("Failed to get content");
+    assert!(
+        content.contains("<div>Replaced</div>"),
+        "Content should be replaced"
+    );
+    assert!(
+        !content.contains("<h1>Hello</h1>"),
+        "Old content should be gone"
+    );
+    tracing::info!("✓ set_content() replaces existing content");
+
+    // Verify locator works on set_content page
+    let heading = page.locator("div").await;
+    let text = heading
+        .text_content()
+        .await
+        .expect("Failed to get text content");
+    assert_eq!(text.as_deref(), Some("Replaced"));
+    tracing::info!("✓ Locators work on set_content pages");
+
+    // Cleanup
+    browser.close().await.expect("Failed to close browser");
+}
+
 // ============================================================================
 // Merged from: page_set_viewport_size_test.rs
 // ============================================================================

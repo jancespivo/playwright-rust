@@ -444,6 +444,14 @@ impl Page {
         frame.content().await
     }
 
+    /// Sets the content of the page.
+    ///
+    /// See: <https://playwright.dev/docs/api/class-page#page-set-content>
+    pub async fn set_content(&self, html: &str, options: Option<GotoOptions>) -> Result<()> {
+        let frame = self.main_frame().await?;
+        frame.set_content(html, options).await
+    }
+
     /// Creates a locator for finding elements on the page.
     ///
     /// Locators are the central piece of Playwright's auto-waiting and retry-ability.
