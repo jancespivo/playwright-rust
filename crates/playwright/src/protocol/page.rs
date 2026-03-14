@@ -452,6 +452,26 @@ impl Page {
         frame.set_content(html, options).await
     }
 
+    /// Waits for the required load state to be reached.
+    ///
+    /// This resolves when the page reaches a required load state, `load` by default.
+    /// The navigation must have been committed when this method is called. If the current
+    /// document has already reached the required state, resolves immediately.
+    ///
+    /// See: <https://playwright.dev/docs/api/class-page#page-wait-for-load-state>
+    pub async fn wait_for_load_state(&self, state: Option<WaitUntil>) -> Result<()> {
+        let frame = self.main_frame().await?;
+        frame.wait_for_load_state(state).await
+    }
+
+    /// Waits for the main frame to navigate to a URL matching the given string or glob pattern.
+    ///
+    /// See: <https://playwright.dev/docs/api/class-page#page-wait-for-url>
+    pub async fn wait_for_url(&self, url: &str, options: Option<GotoOptions>) -> Result<()> {
+        let frame = self.main_frame().await?;
+        frame.wait_for_url(url, options).await
+    }
+
     /// Creates a locator for finding elements on the page.
     ///
     /// Locators are the central piece of Playwright's auto-waiting and retry-ability.

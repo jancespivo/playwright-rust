@@ -408,6 +408,48 @@ async fn test_wait_until_options() {
 
     tracing::info!("✓ wait_until=NetworkIdle works");
 
+    // Test 4: wait_for_load_state with Load
+    page.wait_for_load_state(Some(WaitUntil::Load))
+        .await
+        .expect("wait_for_load_state(Load) should succeed");
+    tracing::info!("✓ wait_for_load_state(Load) works");
+
+    // Test 5: wait_for_load_state with DomContentLoaded
+    page.wait_for_load_state(Some(WaitUntil::DomContentLoaded))
+        .await
+        .expect("wait_for_load_state(DomContentLoaded) should succeed");
+    tracing::info!("✓ wait_for_load_state(DomContentLoaded) works");
+
+    // Test 6: wait_for_load_state with None (defaults to "load")
+    page.wait_for_load_state(None)
+        .await
+        .expect("wait_for_load_state(None) should succeed");
+    tracing::info!("✓ wait_for_load_state(None) works");
+
+    // Test 7: wait_for_url with exact match (already at the URL)
+    let current_url = format!("{}/locators.html", server.url());
+    page.wait_for_url(&current_url, None)
+        .await
+        .expect("wait_for_url should succeed for current URL");
+    tracing::info!("✓ wait_for_url(exact) works");
+
+    // Test 8: wait_for_url with glob pattern
+    page.wait_for_url(&format!("{}/**", server.url()), None)
+        .await
+        .expect("wait_for_url with glob should succeed");
+    tracing::info!("✓ wait_for_url(glob) works");
+
+    // Test 9: wait_for_url timeout for non-matching URL
+    let options = GotoOptions::new().timeout(Duration::from_millis(100));
+    let result = page
+        .wait_for_url("http://never-matches.example.com/", Some(options))
+        .await;
+    assert!(
+        result.is_err(),
+        "Expected timeout error for non-matching URL"
+    );
+    tracing::info!("✓ wait_for_url timeout works");
+
     browser.close().await.expect("Failed to close browser");
     server.shutdown();
 }

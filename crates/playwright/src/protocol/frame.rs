@@ -4,7 +4,7 @@
 // Navigation and DOM operations happen on frames, not directly on pages.
 
 use crate::error::{Error, Result};
-use crate::protocol::page::{GotoOptions, Response};
+use crate::protocol::page::{GotoOptions, Response, WaitUntil};
 use crate::protocol::{parse_result, serialize_argument, serialize_null};
 use crate::server::channel::Channel;
 use crate::server::channel_owner::{ChannelOwner, ChannelOwnerImpl, ParentOrConnection};
@@ -238,6 +238,125 @@ impl Frame {
         }
 
         self.channel().send_no_result("setContent", params).await
+    }
+
+    /// Waits for the required load state to be reached.
+    ///
+    /// Playwright's protocol doesn't expose `waitForLoadState` as a server-side command —
+    /// it's implemented client-side using lifecycle events. We implement it by polling
+    /// `document.readyState` via JavaScript evaluation.
+    ///
+    /// See: <https://playwright.dev/docs/api/class-frame#frame-wait-for-load-state>
+    pub async fn wait_for_load_state(&self, state: Option<WaitUntil>) -> Result<()> {
+        let target_state = state.unwrap_or(WaitUntil::Load);
+
+        let js_check = match target_state {
+            // "load" means the full page has loaded (readyState === "complete")
+            WaitUntil::Load => "document.readyState === 'complete'",
+            // "domcontentloaded" means DOM is ready (readyState !== "loading")
+            WaitUntil::DomContentLoaded => "document.readyState !== 'loading'",
+            // "networkidle" has no direct readyState equivalent; we approximate
+            // by checking "complete" (same as Load)
+            WaitUntil::NetworkIdle => "document.readyState === 'complete'",
+            // "commit" means any response has been received (readyState !== "loading" at minimum)
+            WaitUntil::Commit => "document.readyState !== 'loading'",
+        };
+
+        let timeout_ms = crate::DEFAULT_TIMEOUT_MS as u64;
+        let poll_interval = std::time::Duration::from_millis(50);
+        let start = std::time::Instant::now();
+
+        loop {
+            #[derive(Deserialize)]
+            struct EvalResponse {
+                value: serde_json::Value,
+            }
+
+            let result: EvalResponse = self
+                .channel()
+                .send(
+                    "evaluateExpression",
+                    serde_json::json!({
+                        "expression": js_check,
+                        "isFunction": false,
+                        "arg": crate::protocol::serialize_null(),
+                    }),
+                )
+                .await?;
+
+            // Playwright protocol returns booleans as {"b": true/false}
+            let is_ready = result
+                .value
+                .as_object()
+                .and_then(|m| m.get("b"))
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+
+            if is_ready {
+                return Ok(());
+            }
+
+            if start.elapsed().as_millis() as u64 >= timeout_ms {
+                return Err(crate::error::Error::Timeout(format!(
+                    "wait_for_load_state({}) timed out after {}ms",
+                    target_state.as_str(),
+                    timeout_ms
+                )));
+            }
+
+            tokio::time::sleep(poll_interval).await;
+        }
+    }
+
+    /// Waits for the frame to navigate to a URL matching the given string or glob pattern.
+    ///
+    /// Playwright's protocol doesn't expose `waitForURL` as a server-side command —
+    /// it's implemented client-side. We implement it by polling `window.location.href`.
+    ///
+    /// See: <https://playwright.dev/docs/api/class-frame#frame-wait-for-url>
+    pub async fn wait_for_url(&self, url: &str, options: Option<GotoOptions>) -> Result<()> {
+        let timeout_ms = options
+            .as_ref()
+            .and_then(|o| o.timeout)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(crate::DEFAULT_TIMEOUT_MS as u64);
+
+        // Convert glob pattern to regex for matching
+        // Playwright supports string (exact), glob (**), and regex patterns
+        // We support exact string and basic glob patterns
+        let is_glob = url.contains('*');
+
+        let poll_interval = std::time::Duration::from_millis(50);
+        let start = std::time::Instant::now();
+
+        loop {
+            let current_url = self.url();
+
+            let matches = if is_glob {
+                glob_match(url, &current_url)
+            } else {
+                current_url == url
+            };
+
+            if matches {
+                // URL matches — optionally wait for load state
+                if let Some(ref opts) = options {
+                    if let Some(wait_until) = opts.wait_until {
+                        self.wait_for_load_state(Some(wait_until)).await?;
+                    }
+                }
+                return Ok(());
+            }
+
+            if start.elapsed().as_millis() as u64 >= timeout_ms {
+                return Err(crate::error::Error::Timeout(format!(
+                    "wait_for_url({}) timed out after {}ms, current URL: {}",
+                    url, timeout_ms, current_url
+                )));
+            }
+
+            tokio::time::sleep(poll_interval).await;
+        }
     }
 
     /// Returns the first element matching the selector, or None if not found.
@@ -1379,4 +1498,20 @@ impl std::fmt::Debug for Frame {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Frame").field("guid", &self.guid()).finish()
     }
+}
+
+/// Simple glob pattern matching for URL patterns.
+///
+/// Supports `*` (matches any characters except `/`) and `**` (matches any characters including `/`).
+/// This matches Playwright's URL glob pattern behavior.
+fn glob_match(pattern: &str, text: &str) -> bool {
+    let regex_str = pattern
+        .replace('.', "\\.")
+        .replace("**", "\x00") // placeholder for **
+        .replace('*', "[^/]*")
+        .replace('\x00', ".*"); // restore ** as .*
+    let regex_str = format!("^{}$", regex_str);
+    regex::Regex::new(&regex_str)
+        .map(|re| re.is_match(text))
+        .unwrap_or(false)
 }
