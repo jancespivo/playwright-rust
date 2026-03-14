@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.5] - 2026-03-14
+
 ### Added
 
 - **`ignore_default_args` for persistent contexts** - Added `ignore_default_args` option to `BrowserContextOptions` for use with `launch_persistent_context_with_options()` (Issue #38)
@@ -27,6 +29,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`page.wait_for_load_state(state)`** - Wait for `load`, `domcontentloaded`, or `networkidle` states
 - **`page.wait_for_url(url)`** - Wait for navigation to a matching URL (exact string or glob pattern)
 - **`locator.is_hidden()` / `locator.is_disabled()`** - Negative state checks complementing `is_visible()` and `is_enabled()`
+- **`to_have_screenshot()` visual regression assertion** (Issue #35)
+  - `expect(locator).to_have_screenshot(path, options)` — compare locator screenshot against baseline
+  - `expect_page(&page).to_have_screenshot(path, options)` — page-level screenshot comparison
+  - Auto-creates baseline on first run, compares on subsequent runs
+  - `max_diff_pixels` / `max_diff_pixel_ratio` — configurable tolerance
+  - `threshold` — per-pixel color distance tolerance (default 0.2)
+  - `animations: Disabled` — freeze CSS animations/transitions before capture
+  - `mask` — overlay locators with pink (#FF00FF) to exclude dynamic content
+  - `update_snapshots` — force baseline update
+  - Generates diff image on failure highlighting differences in red
+  - Auto-retry with timeout (default 5s), matching Playwright's assertion pattern
 
 ### Fixed
 
@@ -346,7 +359,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Playwright returns null for data URLs and `about:blank` (valid behavior, not an error)
   - Migration: `page.goto("https://example.com").await?.expect("response")` or use `if let Some(response) = page.goto(...).await? { ... }`
 
-[Unreleased]: https://github.com/padamson/playwright-rust/compare/v0.8.4...HEAD
+[Unreleased]: https://github.com/padamson/playwright-rust/compare/v0.8.5...HEAD
+[0.8.5]: https://github.com/padamson/playwright-rust/compare/v0.8.4...v0.8.5
 [0.8.4]: https://github.com/padamson/playwright-rust/compare/v0.8.3...v0.8.4
 [0.8.3]: https://github.com/padamson/playwright-rust/compare/v0.8.2...v0.8.3
 [0.8.2]: https://github.com/padamson/playwright-rust/compare/v0.8.1...v0.8.2

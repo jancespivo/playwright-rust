@@ -183,7 +183,10 @@ pub const DEFAULT_TIMEOUT_MS: f64 = 30000.0;
 pub use error::{Error, Result};
 
 // Re-export assertions API
-pub use assertions::expect;
+pub use assertions::{
+    Animations, PageExpectation, ScreenshotAssertionOptions, ScreenshotAssertionOptionsBuilder,
+    expect, expect_page,
+};
 
 // Re-export Playwright main entry point and browser API
 pub use protocol::{Browser, BrowserContext, BrowserType, Page, Playwright, Response};

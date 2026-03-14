@@ -464,6 +464,20 @@ impl Locator {
         &self.selector
     }
 
+    /// Evaluate a JavaScript expression in the frame context.
+    ///
+    /// Used internally for injecting CSS (e.g., disabling animations) before screenshot assertions.
+    pub(crate) async fn evaluate_js<T: serde::Serialize>(
+        &self,
+        expression: &str,
+        _arg: Option<T>,
+    ) -> Result<()> {
+        self.frame
+            .frame_evaluate_expression(expression)
+            .await
+            .map_err(|e| self.wrap_error_with_selector(e))
+    }
+
     /// Creates a locator for the first matching element.
     ///
     /// See: <https://playwright.dev/docs/api/class-locator#locator-first>

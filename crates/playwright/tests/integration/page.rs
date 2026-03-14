@@ -415,14 +415,6 @@ async fn test_page_set_content() {
     browser.close().await.expect("Failed to close browser");
 }
 
-// ============================================================================
-// Merged from: page_set_viewport_size_test.rs
-// ============================================================================
-
-// Tests for page.set_viewport_size() method
-//
-// Tests viewport resizing for responsive testing.
-
 #[tokio::test]
 async fn test_set_viewport_size_basic() {
     crate::common::init_tracing();

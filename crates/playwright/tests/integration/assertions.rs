@@ -975,3 +975,346 @@ async fn test_text_assertions_cross_browser_smoke() {
     webkit.close().await.expect("Failed to close WebKit");
     server.shutdown();
 }
+
+// ============================================================================
+// to_have_screenshot() Assertions
+// ============================================================================
+
+#[tokio::test]
+async fn test_to_have_screenshot_creates_baseline() {
+    crate::common::init_tracing();
+
+    let playwright = Playwright::launch()
+        .await
+        .expect("Failed to launch Playwright");
+    let browser = playwright
+        .chromium()
+        .launch()
+        .await
+        .expect("Failed to launch browser");
+    let page = browser.new_page().await.expect("Failed to create page");
+
+    page.set_content(
+        "<h1 style='color:red;font-family:monospace'>Hello Screenshot</h1>",
+        None,
+    )
+    .await
+    .expect("Failed to set content");
+
+    let temp_dir = tempfile::TempDir::new().expect("Failed to create temp dir");
+    let baseline_path = temp_dir.path().join("baseline.png");
+
+    // First run: no baseline exists, should create it
+    let locator = page.locator("h1").await;
+    expect(locator)
+        .to_have_screenshot(&baseline_path, None)
+        .await
+        .expect("First run should create baseline");
+
+    assert!(baseline_path.exists(), "Baseline file should be created");
+    let baseline_bytes = std::fs::read(&baseline_path).expect("Failed to read baseline");
+    assert!(baseline_bytes.len() > 100, "Baseline should be a valid PNG");
+    // PNG magic bytes
+    assert_eq!(&baseline_bytes[..4], &[0x89, 0x50, 0x4E, 0x47]);
+    tracing::info!("✓ Baseline created ({} bytes)", baseline_bytes.len());
+
+    browser.close().await.expect("Failed to close browser");
+}
+
+#[tokio::test]
+async fn test_to_have_screenshot_matches_baseline() {
+    crate::common::init_tracing();
+
+    let playwright = Playwright::launch()
+        .await
+        .expect("Failed to launch Playwright");
+    let browser = playwright
+        .chromium()
+        .launch()
+        .await
+        .expect("Failed to launch browser");
+    let page = browser.new_page().await.expect("Failed to create page");
+
+    page.set_content(
+        "<div id='test' style='width:100px;height:100px;background:blue;font-family:monospace'>Test</div>",
+        None,
+    )
+    .await
+    .expect("Failed to set content");
+
+    let temp_dir = tempfile::TempDir::new().expect("Failed to create temp dir");
+    let baseline_path = temp_dir.path().join("match.png");
+
+    let locator = page.locator("#test").await;
+
+    // Create baseline
+    expect(locator.clone())
+        .to_have_screenshot(&baseline_path, None)
+        .await
+        .expect("Should create baseline");
+
+    // Second run: same content should match
+    expect(locator)
+        .to_have_screenshot(&baseline_path, None)
+        .await
+        .expect("Second run should match baseline");
+
+    tracing::info!("✓ Screenshot matches baseline");
+
+    browser.close().await.expect("Failed to close browser");
+}
+
+#[tokio::test]
+async fn test_to_have_screenshot_detects_difference() {
+    crate::common::init_tracing();
+
+    let playwright = Playwright::launch()
+        .await
+        .expect("Failed to launch Playwright");
+    let browser = playwright
+        .chromium()
+        .launch()
+        .await
+        .expect("Failed to launch browser");
+    let page = browser.new_page().await.expect("Failed to create page");
+
+    // Create baseline with blue background
+    page.set_content(
+        "<div id='test' style='width:100px;height:100px;background:blue;font-family:monospace'>Test</div>",
+        None,
+    )
+    .await
+    .expect("Failed to set content");
+
+    let temp_dir = tempfile::TempDir::new().expect("Failed to create temp dir");
+    let baseline_path = temp_dir.path().join("diff.png");
+
+    let locator = page.locator("#test").await;
+    expect(locator)
+        .to_have_screenshot(&baseline_path, None)
+        .await
+        .expect("Should create baseline");
+
+    // Change content to red
+    page.set_content(
+        "<div id='test' style='width:100px;height:100px;background:red;font-family:monospace'>Test</div>",
+        None,
+    )
+    .await
+    .expect("Failed to set content");
+
+    let locator = page.locator("#test").await;
+    let result = expect(locator)
+        .with_timeout(std::time::Duration::from_millis(500))
+        .to_have_screenshot(&baseline_path, None)
+        .await;
+
+    assert!(result.is_err(), "Should detect screenshot difference");
+
+    // Verify diff and actual images were saved
+    let actual_path = temp_dir.path().join("diff-actual.png");
+    let diff_path = temp_dir.path().join("diff-diff.png");
+    assert!(actual_path.exists(), "Actual screenshot should be saved");
+    assert!(diff_path.exists(), "Diff image should be saved");
+    tracing::info!("✓ Screenshot difference detected, diff saved");
+
+    browser.close().await.expect("Failed to close browser");
+}
+
+#[tokio::test]
+async fn test_to_have_screenshot_max_diff_pixels() {
+    crate::common::init_tracing();
+
+    let playwright = Playwright::launch()
+        .await
+        .expect("Failed to launch Playwright");
+    let browser = playwright
+        .chromium()
+        .launch()
+        .await
+        .expect("Failed to launch browser");
+    let page = browser.new_page().await.expect("Failed to create page");
+
+    // Create baseline
+    page.set_content(
+        "<div id='test' style='width:50px;height:50px;background:blue;font-family:monospace'></div>",
+        None,
+    )
+    .await
+    .expect("Failed to set content");
+
+    let temp_dir = tempfile::TempDir::new().expect("Failed to create temp dir");
+    let baseline_path = temp_dir.path().join("tolerance.png");
+
+    let locator = page.locator("#test").await;
+    expect(locator)
+        .to_have_screenshot(&baseline_path, None)
+        .await
+        .expect("Should create baseline");
+
+    // Slightly different (add a small red border)
+    page.evaluate_expression("document.querySelector('#test').style.borderTop = '1px solid red'")
+        .await
+        .expect("Failed to modify");
+
+    // With generous tolerance, should pass
+    let locator = page.locator("#test").await;
+    let options = playwright_rs::ScreenshotAssertionOptions::builder()
+        .max_diff_pixels(5000)
+        .build();
+    expect(locator)
+        .to_have_screenshot(&baseline_path, Some(options))
+        .await
+        .expect("Should pass with max_diff_pixels tolerance");
+    tracing::info!("✓ max_diff_pixels tolerance works");
+
+    browser.close().await.expect("Failed to close browser");
+}
+
+#[tokio::test]
+async fn test_to_have_screenshot_update_snapshots() {
+    crate::common::init_tracing();
+
+    let playwright = Playwright::launch()
+        .await
+        .expect("Failed to launch Playwright");
+    let browser = playwright
+        .chromium()
+        .launch()
+        .await
+        .expect("Failed to launch browser");
+    let page = browser.new_page().await.expect("Failed to create page");
+
+    // Create baseline with blue
+    page.set_content(
+        "<div id='test' style='width:50px;height:50px;background:blue;font-family:monospace'></div>",
+        None,
+    )
+    .await
+    .expect("Failed to set content");
+
+    let temp_dir = tempfile::TempDir::new().expect("Failed to create temp dir");
+    let baseline_path = temp_dir.path().join("update.png");
+
+    let locator = page.locator("#test").await;
+    expect(locator)
+        .to_have_screenshot(&baseline_path, None)
+        .await
+        .expect("Should create baseline");
+
+    // Change to red and update
+    page.set_content(
+        "<div id='test' style='width:50px;height:50px;background:red;font-family:monospace'></div>",
+        None,
+    )
+    .await
+    .expect("Failed to set content");
+
+    let locator = page.locator("#test").await;
+    let options = playwright_rs::ScreenshotAssertionOptions::builder()
+        .update_snapshots(true)
+        .build();
+    expect(locator)
+        .to_have_screenshot(&baseline_path, Some(options))
+        .await
+        .expect("Should update baseline");
+
+    assert!(baseline_path.exists(), "Baseline should still exist");
+    tracing::info!("✓ update_snapshots works");
+
+    browser.close().await.expect("Failed to close browser");
+}
+
+#[tokio::test]
+async fn test_to_have_screenshot_animations_disabled() {
+    crate::common::init_tracing();
+
+    let playwright = Playwright::launch()
+        .await
+        .expect("Failed to launch Playwright");
+    let browser = playwright
+        .chromium()
+        .launch()
+        .await
+        .expect("Failed to launch browser");
+    let page = browser.new_page().await.expect("Failed to create page");
+
+    // Page with CSS animation
+    page.set_content(
+        r#"<style>
+            @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+            #spinner { width:50px; height:50px; background:green; animation: spin 1s infinite; font-family:monospace; }
+        </style>
+        <div id="spinner">Spin</div>"#,
+        None,
+    )
+    .await
+    .expect("Failed to set content");
+
+    let temp_dir = tempfile::TempDir::new().expect("Failed to create temp dir");
+    let baseline_path = temp_dir.path().join("animation.png");
+
+    let locator = page.locator("#spinner").await;
+    let options = playwright_rs::ScreenshotAssertionOptions::builder()
+        .animations(playwright_rs::Animations::Disabled)
+        .build();
+
+    // Should create baseline with animations frozen
+    expect(locator.clone())
+        .to_have_screenshot(&baseline_path, Some(options.clone()))
+        .await
+        .expect("Should create baseline with animations disabled");
+
+    // Second run should match (animations still disabled)
+    expect(locator)
+        .to_have_screenshot(&baseline_path, Some(options))
+        .await
+        .expect("Should match with animations disabled");
+
+    tracing::info!("✓ animations: disabled works");
+
+    browser.close().await.expect("Failed to close browser");
+}
+
+#[tokio::test]
+async fn test_expect_page_to_have_screenshot() {
+    crate::common::init_tracing();
+
+    let playwright = Playwright::launch()
+        .await
+        .expect("Failed to launch Playwright");
+    let browser = playwright
+        .chromium()
+        .launch()
+        .await
+        .expect("Failed to launch browser");
+    let page = browser.new_page().await.expect("Failed to create page");
+
+    page.set_content(
+        "<body style='margin:0;background:white;font-family:monospace'><h1>Page Screenshot</h1></body>",
+        None,
+    )
+    .await
+    .expect("Failed to set content");
+
+    let temp_dir = tempfile::TempDir::new().expect("Failed to create temp dir");
+    let baseline_path = temp_dir.path().join("page.png");
+
+    // Page-level screenshot assertion
+    playwright_rs::expect_page(&page)
+        .to_have_screenshot(&baseline_path, None)
+        .await
+        .expect("Should create page baseline");
+
+    assert!(baseline_path.exists(), "Page baseline should be created");
+
+    // Second run should match
+    playwright_rs::expect_page(&page)
+        .to_have_screenshot(&baseline_path, None)
+        .await
+        .expect("Page screenshot should match");
+
+    tracing::info!("✓ expect_page().to_have_screenshot() works");
+
+    browser.close().await.expect("Failed to close browser");
+}
